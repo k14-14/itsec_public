@@ -1,0 +1,8 @@
+#!/bin/bash
+term="Priority:\s2"
+log=/var/log/snort/alert
+f=$(grep  -c $term $log)
+if [ $f -gt 0 ]; 
+then
+echo $term is found  $f times in $log | mail -s "snort alert: Priority 2" user_name;
+fi
