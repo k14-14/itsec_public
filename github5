@@ -1,0 +1,136 @@
+import glob, os, time, sys
+import subprocess
+from datetime import datetime
+
+# try:
+#    subprocess.check_call(['pip', '--version'])
+# except:
+#    try:
+#        subprocess.check_call(['apt', 'add-apt-repository', 'universe'])
+#        subprocess.check_call(['apt', 'install', 'python3-pip'])
+#    except:
+#        print(f'could not install pip. try running the script as root')
+#        sys.exit(1)
+try:
+    import dill
+except:
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'dill'])
+    try:
+        import dill
+    except:
+        print(f'unable to install necessary module dill. try running python3 -m pip install dill')
+        sys.exit(1)
+
+###########################################
+# mail autoresponder
+# responds to mails found in folder 'new' under mail_dir
+# ignores: mails it has seen, return_to field empty, return_to is sender
+# script will check mail every 60 sec by default
+###########################################
+###############options#####################
+mail_dir = 'Maildir'  # directory for mails, should contain 'new' folder
+old_files_path = 'old_files.dill'  # path to save list of mails already responded to
+my_domain = 'itsec5-mac'  # home domain
+my_user = {'john'}  # users whose mail should not be responded to
+interval = 60  # time in sec to wait before checking mail again
+vv = 'v'  # verbosity: q quiet, v verbose, n normal
+###########################################
+###########################################
+
+old_files = dill.load(open(old_files_path, 'rb')) if os.path.isfile(old_files_path) else set()
+
+n = v = True
+if vv == 'n':
+    v = False
+if vv == 'q':
+    n = False
+    v = False
+
+
+def get_fields(d):
+    recipient = sender = date = return_to = None
+    try:
+        i1 = d.index('Return-Path')
+        i2 = d.index('>')
+        recipient = d[i1 + 14:i2]
+    except:
+        pass
+    try:
+        i3 = d.index('Delivered-To')
+        i4 = d[i3:].index('\n')
+        sender = d[i3 + 14:i3 + i4]
+    except:
+        pass
+    try:
+        i5 = d.index('Date:')
+        date = d[i5 + 6:i5 + 38]
+    except:
+        pass
+    try:
+        i7 = d.index('reply to:')
+        i8 = d[i7:].index('\n')
+        return_to = d[i7 + 10:i7 + i8]
+    except:
+        pass
+    return sender, return_to, recipient, date
+
+
+def send_mail():
+    global v, n
+    while True:
+        try:
+            # get files
+            files = glob.glob(os.path.join(mail_dir, 'new', '**'), recursive=True)
+            for file in files:
+                if os.path.isfile(file):
+                    file1 = file[:file.index(':')] if ':' in file else file
+                    if file1 in old_files:
+                        if v: print(f'file {file1} already seen, no mail sent')
+                    else:
+                        if v: print(f'checking {file1} ...')
+                        with open(file, 'r') as f:
+                            d = f.read()
+                        if 'Return-Path' in d:
+                            sender, return_to, recipient, date = get_fields(d)
+                            subject = 'autoresponder'
+                            recipient = return_to if return_to else recipient
+                            if v: print(f'ret: {recipient}')
+                            if v: print(f'del_to: {sender}')
+                            if v: print(f'date: {date}')
+                            f = True
+                            if not recipient:
+                                if v: print('no recipient, no mail sent')
+                                f = False
+                            if recipient == sender:
+                                if v: print('recipient is sender, no mail sent')
+                                f = False
+                            for user in my_user:
+                                if user in recipient and my_domain in recipient:
+                                    if v: print(f'recipient is {recipient}, no mail sent')
+                                    f = False
+                                    break
+                            if f:
+                                cmd = f"echo {my_domain} confirms receipt of your message sent {date}"
+                                cmd += f" | s-nail -s {subject} -r {sender} {recipient}"
+                                if v: print(cmd)
+                                try:
+                                    po = subprocess.run(cmd, shell=True)
+                                except Exception as e:
+                                    print(e)
+                                n = datetime.now()
+                                if n: print(
+                                    f'sent mail from {sender} received {date} to {recipient} at {n.strftime("%d.%m.%y %H:%M:%S")}')
+                                if v: print(po)
+                            old_files.add(file)
+                        else:
+                            if v: print(f'no Return-Path in {file1}')
+            dill.dump(old_files, open(old_files_path, 'wb'))
+            if n: print(f'.', end='')
+            time.sleep(interval)
+            if v: print('waking up')
+        except (IOError, Exception) as e:
+            print(e)
+
+if __name__ == '__main__':
+    send_mail()
+   
