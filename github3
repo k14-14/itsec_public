@@ -1,0 +1,13 @@
+#!/bin/sh
+#copy new snort rules
+cd /etc/snort/rules
+wget https://snort.org/downloads/community/community-rules.tar.gz
+if test -f community-rules.tar.gz; 
+then
+tar -zxf community-rules.tar.gz
+rm community-rules.tar.gz 
+mv community.rules  community.rules.bak
+cd community-rules
+mv community.rules  ..
+cd ..
+rm -fr community-rules
