@@ -1,0 +1,6 @@
+#!/bin/sh
+kill -HUP `pidof snort`
+# remove old log files
+find /var/log/snort -type f -mtime +7 -print0 | xargs -0 -r rm
+# remove empty subdirectories
+find /var/log/snort -mindepth 1 -depth -type d -print0 | xargs -0 -r rmdir -v –ignore-fail-on-non-empty
